@@ -22,6 +22,7 @@ defmodule Tracer.Server do
         nil ->
           start()
           unquote(clauses)
+
         pid ->
           unquote(clauses)
       end
@@ -29,7 +30,7 @@ defmodule Tracer.Server do
   end
 
   def start_link(params) do
-    GenServer.start_link(__MODULE__, params, [name: @server_name])
+    GenServer.start_link(__MODULE__, params, name: @server_name)
   end
 
   def start do
@@ -38,7 +39,9 @@ defmodule Tracer.Server do
 
   def stop do
     case Process.whereis(@server_name) do
-      nil -> {:error, :not_running}
+      nil ->
+        {:error, :not_running}
+
       pid ->
         GenServer.call(@server_name, :stop_tool)
         Tracer.Supervisor.stop_server(pid)
@@ -54,18 +57,19 @@ defmodule Tracer.Server do
     end
   end)
 
-  def set_tool(%{"__tool__": _} = tool) do
+  def set_tool(%{__tool__: _} = tool) do
     with :ok <- Tool.valid?(tool) do
       ensure_server_up do
         GenServer.call(@server_name, {:set_tool, tool})
       end
     end
   end
+
   def set_tool(_) do
     raise ArgumentError, message: "Argument is not a tool"
   end
 
-  def start_tool(%{"__tool__": _} = tool) do
+  def start_tool(%{__tool__: _} = tool) do
     with :ok <- Tool.valid?(tool) do
       ensure_server_up do
         GenServer.call(@server_name, {:start_tool, tool})
@@ -83,33 +87,45 @@ defmodule Tracer.Server do
   end
 
   def handle_call({:start_tool, tool}, _from, %Server{} = state) do
-    with  %Server{} = state <- stop_if_tracing(state),
-          %Server{} = state <- get_running_config(state, tool),
-          :ok <- ProbeList.valid?(state.probes),
-          ret when is_pid(ret) <- ToolServer.start(tool) do
-      state = state
-      |> Map.put(:tool_server_pid, ret)
+    with %Server{} = state <- stop_if_tracing(state),
+         %Server{} = state <- get_running_config(state, tool),
+         :ok <- ProbeList.valid?(state.probes),
+         ret when is_pid(ret) <- ToolServer.start(tool) do
+      state =
+        state
+        |> Map.put(:tool_server_pid, ret)
 
       agent_opts = Tool.get_agent_opts(tool)
       node = Keyword.get(agent_opts, :node, state.node)
-      {ret, new_state} = case AgentCmds.start(node,
-                                           state.probes,
-                                           [forward_pid: state.tool_server_pid]
-                                              ++ agent_opts) do
-        {:error, error} ->
-          {{:error, error}, state}
-        agent_pids ->
-          new_state = state
-          |> Map.put(:agent_pids, agent_pids)
-          |> Map.put(:node, node)
-          |> Map.put(:tracing, true)
-          # TODO get a notification from agents
-          :timer.sleep(5)
-          report_message(state,
-                         :started_tracing,
-                         "started tracing")
-          {:ok, new_state}
-      end
+
+      {ret, new_state} =
+        case AgentCmds.start(
+               node,
+               state.probes,
+               [forward_pid: state.tool_server_pid] ++
+                 agent_opts
+             ) do
+          {:error, error} ->
+            {{:error, error}, state}
+
+          agent_pids ->
+            new_state =
+              state
+              |> Map.put(:agent_pids, agent_pids)
+              |> Map.put(:node, node)
+              |> Map.put(:tracing, true)
+
+            # TODO get a notification from agents
+            :timer.sleep(5)
+
+            report_message(
+              state,
+              :started_tracing,
+              "started tracing"
+            )
+
+            {:ok, new_state}
+        end
 
       {:reply, ret, new_state}
     else
@@ -123,36 +139,59 @@ defmodule Tracer.Server do
     {:reply, ret, state}
   end
 
-  def handle_info({:EXIT, pid, :done_reporting},
-      %Server{} = state) do
+  def handle_info(
+        {:EXIT, pid, :done_reporting},
+        %Server{} = state
+      ) do
     if state.tool_server_pid == pid do
       {:noreply, put_in(state.tool_server_pid, nil)}
     else
       {:noreply, state}
     end
   end
-  def handle_info({:EXIT, pid, {:done_tracing, exit_status}},
-      %Server{} = state) do
+
+  def handle_info(
+        {:EXIT, pid, {:done_tracing, exit_status}},
+        %Server{} = state
+      ) do
     state = handle_agent_exit(state, pid)
-    report_message(state,
-                   {:done_tracing, exit_status},
-                   "done tracing: #{inspect exit_status}")
+
+    report_message(
+      state,
+      {:done_tracing, exit_status},
+      "done tracing: #{inspect(exit_status)}"
+    )
+
     {:noreply, state}
   end
-  def handle_info({:EXIT, pid, {:done_tracing, key, val}},
-      %Server{} = state) do
+
+  def handle_info(
+        {:EXIT, pid, {:done_tracing, key, val}},
+        %Server{} = state
+      ) do
     state = handle_agent_exit(state, pid)
-    report_message(state,
-                   {:done_tracing, key, val},
-                   "done tracing: #{to_string(key)} #{val}")
+
+    report_message(
+      state,
+      {:done_tracing, key, val},
+      "done tracing: #{to_string(key)} #{val}"
+    )
+
     {:noreply, state}
   end
-  def handle_info({:EXIT, pid, exit_code},
-      %Server{} = state) do
+
+  def handle_info(
+        {:EXIT, pid, exit_code},
+        %Server{} = state
+      ) do
     state = handle_agent_exit(state, pid)
-    report_message(state,
-                   {:done_tracing, exit_code},
-                   "done tracing: #{inspect exit_code}")
+
+    report_message(
+      state,
+      {:done_tracing, exit_code},
+      "done tracing: #{inspect(exit_code)}"
+    )
+
     {:noreply, state}
   end
 
@@ -160,9 +199,12 @@ defmodule Tracer.Server do
     tool
     |> Tool.get_probes()
     |> case do
-      nil -> state
+      nil ->
+        state
+
       probes when is_list(probes) ->
         put_in(state.probes, probes)
+
       probe ->
         put_in(state.probes, [probe])
     end
@@ -171,23 +213,27 @@ defmodule Tracer.Server do
 
   defp report_message(state, event, message) do
     if is_pid(state.forward_pid) do
-      send state.forward_pid, event
+      send(state.forward_pid, event)
     else
       IO.puts(message)
     end
   end
 
   defp handle_stop_trace(state) do
-    {ret, state} = case AgentCmds.stop(state.agent_pids) do
-      {:error, error} ->
-        {{:error, error}, state}
-      _ ->
-        new_state = state
-        |> Map.put(:agent_pids, [])
-        |> Map.put(:node, nil)
-        |> Map.put(:tracing, false)
-        {:ok, new_state}
-    end
+    {ret, state} =
+      case AgentCmds.stop(state.agent_pids) do
+        {:error, error} ->
+          {{:error, error}, state}
+
+        _ ->
+          new_state =
+            state
+            |> Map.put(:agent_pids, [])
+            |> Map.put(:node, nil)
+            |> Map.put(:tracing, false)
+
+          {:ok, new_state}
+      end
 
     ToolServer.stop(state.tool_server_pid)
     state = put_in(state.tool_server_pid, nil)
@@ -197,6 +243,7 @@ defmodule Tracer.Server do
   defp handle_agent_exit(state, pid) do
     agent_pids = state.agent_pids -- [pid]
     state = put_in(state.agent_pids, agent_pids)
+
     if Enum.empty?(agent_pids) do
       {_ret, state} = handle_stop_trace(state)
       state

@@ -12,18 +12,27 @@ defmodule Tracer.Tool.Display do
     init_state = init_tool(%Display{}, opts, [:match])
 
     case Keyword.get(opts, :match) do
-      nil -> init_state
+      nil ->
+        init_state
+
       matcher ->
         node = Keyword.get(opts, :node)
-        process = init_state
-        |> get_process()
-        |> ProcessHelper.ensure_pid(node)
+
+        process =
+          init_state
+          |> get_process()
+          |> ProcessHelper.ensure_pid(node)
 
         all_child = ProcessHelper.find_all_children(process, node)
         type = Keyword.get(opts, :type, :call)
-        probe = Probe.new(type: type,
-                          process: [process | all_child],
-                          match: matcher)
+
+        probe =
+          Probe.new(
+            type: type,
+            process: [process | all_child],
+            match: matcher
+          )
+
         set_probes(init_state, [probe])
     end
   end
@@ -32,5 +41,4 @@ defmodule Tracer.Tool.Display do
     report_event(state, event)
     state
   end
-
 end

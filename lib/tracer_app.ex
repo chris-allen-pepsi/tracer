@@ -7,5 +7,4 @@ defmodule Tracer.App do
   def start(_type, _args) do
     Tracer.Supervisor.start_link()
   end
-
 end

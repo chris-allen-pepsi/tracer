@@ -6,7 +6,7 @@ defmodule Tracer.PidHandler do
   alias __MODULE__
   import Tracer.Macros
 
-  @default_max_message_count  1000
+  @default_max_message_count 1000
   @default_max_queue_size 1000
 
   defstruct message_count: 0,
@@ -15,49 +15,62 @@ defmodule Tracer.PidHandler do
             event_callback: nil
 
   def start(opts) when is_list(opts) do
-    initial_state = opts
-    |> Enum.reduce(%PidHandler{}, fn ({keyword, value}, pid_handler) ->
-      Map.put(pid_handler, keyword, value)
-    end)
-    |> tuple_x_and_fx(Map.get(:event_callback))
-    |> case do
-      {_state, nil} ->
-        raise ArgumentError, message: "missing event_callback configuration"
-      {state, {cbk_fun, _cbk_state}} when is_function(cbk_fun) ->
-        state
-      {state, cbk_fun} when is_function(cbk_fun) ->
-        case :erlang.fun_info(cbk_fun, :arity) do
-          {_, 1} ->
-            # encapsulate into arity 2
-            put_in(state.event_callback,
-                  {fn(e, []) -> {cbk_fun.(e), []} end, []})
-          {_, 2} ->
-            put_in(state.event_callback, {cbk_fun, []})
-          {_, arity} ->
-            raise ArgumentError,
-              message: "#invalid arity/#{inspect arity} for: #{inspect cbk_fun}"
-        end
-      {_state, invalid_callback} ->
-        raise ArgumentError,
-              message: "#invalid event_callback: #{inspect invalid_callback}"
-    end
+    initial_state =
+      opts
+      |> Enum.reduce(%PidHandler{}, fn {keyword, value}, pid_handler ->
+        Map.put(pid_handler, keyword, value)
+      end)
+      |> tuple_x_and_fx(Map.get(:event_callback))
+      |> case do
+        {_state, nil} ->
+          raise ArgumentError, message: "missing event_callback configuration"
+
+        {state, {cbk_fun, _cbk_state}} when is_function(cbk_fun) ->
+          state
+
+        {state, cbk_fun} when is_function(cbk_fun) ->
+          case :erlang.fun_info(cbk_fun, :arity) do
+            {_, 1} ->
+              # encapsulate into arity 2
+              put_in(
+                state.event_callback,
+                {fn e, [] -> {cbk_fun.(e), []} end, []}
+              )
+
+            {_, 2} ->
+              put_in(state.event_callback, {cbk_fun, []})
+
+            {_, arity} ->
+              raise ArgumentError,
+                message: "#invalid arity/#{inspect(arity)} for: #{inspect(cbk_fun)}"
+          end
+
+        {_state, invalid_callback} ->
+          raise ArgumentError,
+            message: "#invalid event_callback: #{inspect(invalid_callback)}"
+      end
 
     spawn_link(fn -> process_loop(initial_state) end)
   end
 
   def stop(pid) when is_pid(pid) do
-      send pid, :stop
+    send(pid, :stop)
   end
 
   defp process_loop(state) do
     check_message_queue_size(state)
+
     receive do
-      :stop -> exit(:normal)
+      :stop ->
+        exit(:normal)
+
       trace_event when is_tuple(trace_event) ->
         state
         |> handle_trace_event(trace_event)
         |> process_loop()
-      _ignored -> process_loop(state)
+
+      _ignored ->
+        process_loop(state)
     end
   end
 
@@ -67,24 +80,32 @@ defmodule Tracer.PidHandler do
         state
         |> call_event_callback(trace_event)
         |> check_message_count()
-      _unknown -> state  # ignore
+
+      # ignore
+      _unknown ->
+        state
     end
   end
 
   defp call_event_callback(state, trace_event) do
     {cbk_fun, cbk_state} = state.event_callback
+
     case cbk_fun.(trace_event, cbk_state) do
       {:ok, new_cbk_state} ->
         put_in(state.event_callback, {cbk_fun, new_cbk_state})
-      error -> exit(error)
+
+      error ->
+        exit(error)
     end
   end
 
   defp check_message_queue_size(%PidHandler{max_queue_size: max}) do
     case :erlang.process_info(self(), :message_queue_len) do
       {:message_queue_len, len} when len > max ->
-         exit({:message_queue_size, len})
-      _ -> :ok
+        exit({:message_queue_size, len})
+
+      _ ->
+        :ok
     end
   end
 
@@ -93,9 +114,11 @@ defmodule Tracer.PidHandler do
     |> Map.put(:message_count, state.message_count + 1)
     |> case do
       %PidHandler{message_count: count, max_message_count: max}
-        when count >= max -> exit({:max_message_count, state.max_message_count})
-      state -> state
+      when count >= max ->
+        exit({:max_message_count, state.max_message_count})
+
+      state ->
+        state
     end
   end
-
 end

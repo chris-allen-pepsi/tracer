@@ -16,15 +16,18 @@ defmodule Tracer.Tool.CallSeq.Event do
   defimpl String.Chars, for: Event do
     def to_string(%Event{type: :enter} = event) do
       String.duplicate(" ", event.depth) <>
-        "-> #{inspect event.mod}.#{event.fun}/#{event.arity} " <>
-        if is_nil(event.message), do: "",
-      else: List.to_string(safe_inspect(event.message, event.depth + 5))
+        "-> #{inspect(event.mod)}.#{event.fun}/#{event.arity} " <>
+        if is_nil(event.message),
+          do: "",
+          else: List.to_string(safe_inspect(event.message, event.depth + 5))
     end
+
     def to_string(%Event{type: :exit} = event) do
       String.duplicate(" ", event.depth) <>
-        "<- #{inspect event.mod}.#{event.fun}/#{event.arity} " <>
-        if is_nil(event.return_value), do: "",
-      else: List.to_string(safe_inspect(event.return_value, event.depth + 5))
+        "<- #{inspect(event.mod)}.#{event.fun}/#{event.arity} " <>
+        if is_nil(event.return_value),
+          do: "",
+          else: List.to_string(safe_inspect(event.return_value, event.depth + 5))
     end
 
     # defp message_to_string(nil, _depth), do: ""
@@ -41,6 +44,7 @@ defmodule Tracer.Tool.CallSeq.Event do
     def safe_inspect(term, depth) do
       options = IEx.configuration()
       inspect_options = Keyword.get(options, :inspect, [])
+
       try do
         inspect(term, inspect_options)
       else
@@ -57,8 +61,7 @@ defmodule Tracer.Tool.CallSeq.Event do
     defp indent(formatted, depth) do
       formatted
       |> :binary.split([<<?\n>>], [:global])
-      |> Enum.map(&(["\n" <> String.duplicate(" ", depth) | &1]))
+      |> Enum.map(&["\n" <> String.duplicate(" ", depth) | &1])
     end
   end
-
 end

@@ -6,9 +6,18 @@ defmodule Tracer.Probe do
   alias __MODULE__
   alias Tracer.{Clause, Matcher}
 
-  @valid_types [:call, :procs, :gc, :sched, :send, :receive,
-                :set_on_spawn, :set_on_first_spawn,
-                :set_on_link, :set_on_first_link]
+  @valid_types [
+    :call,
+    :procs,
+    :gc,
+    :sched,
+    :send,
+    :receive,
+    :set_on_spawn,
+    :set_on_first_spawn,
+    :set_on_link,
+    :set_on_first_link
+  ]
   @flag_map %{
     call: :call,
     procs: :procs,
@@ -23,7 +32,9 @@ defmodule Tracer.Probe do
   }
 
   @new_options [
-    :type, :process, :match
+    :type,
+    :process,
+    :match
   ]
 
   defstruct type: nil,
@@ -34,17 +45,22 @@ defmodule Tracer.Probe do
 
   def new(opts) when is_list(opts) do
     if Keyword.fetch(opts, :type) != :error do
-      Enum.reduce(opts,
-                  %Probe{flags: default_flags(opts)},
-                  fn {field, val}, probe ->
-        cond do
-          is_tuple(probe) and elem(probe, 0) == :error -> probe
-          !Enum.member?(@new_options, field) ->
-            {:error, "#{field} not a valid option"}
-          true ->
-            apply(__MODULE__, field, [probe, val])
+      Enum.reduce(
+        opts,
+        %Probe{flags: default_flags(opts)},
+        fn {field, val}, probe ->
+          cond do
+            is_tuple(probe) and elem(probe, 0) == :error ->
+              probe
+
+            !Enum.member?(@new_options, field) ->
+              {:error, "#{field} not a valid option"}
+
+            true ->
+              apply(__MODULE__, field, [probe, val])
+          end
         end
-      end)
+      )
     else
       {:error, :missing_type}
     end
@@ -86,12 +102,14 @@ defmodule Tracer.Probe do
   end
 
   def add_process(probe, procs) when is_list(procs) do
-    put_in(probe.process_list,
+    put_in(
+      probe.process_list,
       probe.process_list
-        |> Enum.concat(procs)
-        |> Enum.uniq
+      |> Enum.concat(procs)
+      |> Enum.uniq()
     )
   end
+
   def add_process(probe, proc) do
     put_in(probe.process_list, Enum.uniq([proc | probe.process_list]))
   end
@@ -99,6 +117,7 @@ defmodule Tracer.Probe do
   def remove_process(probe, procs) when is_list(procs) do
     put_in(probe.process_list, probe.process_list -- procs)
   end
+
   def remove_process(probe, proc) do
     remove_process(probe, [proc])
   end
@@ -110,6 +129,7 @@ defmodule Tracer.Probe do
       error_list -> {:error, error_list}
     end
   end
+
   def add_clauses(probe, clause) do
     add_clauses(probe, [clause])
   end
@@ -125,6 +145,7 @@ defmodule Tracer.Probe do
   def remove_clauses(probe, clauses) when is_list(clauses) do
     put_in(probe.clauses, probe.clauses -- clauses)
   end
+
   def remove_clauses(probe, clause) do
     remove_clauses(probe, [clause])
   end
@@ -157,6 +178,7 @@ defmodule Tracer.Probe do
       Enum.each(probe.process_list, fn p ->
         :erlang.trace(p, probe.enabled?, flags ++ flags(probe))
       end)
+
       # Apply trace_pattern commands
       Enum.each(probe.clauses, fn c -> Clause.apply(c, probe.enabled?) end)
       probe
@@ -166,24 +188,25 @@ defmodule Tracer.Probe do
   def get_trace_cmds(probe, flags \\ []) do
     if probe.enabled? do
       with true <- valid?(probe) do
-        Enum.map(probe.clauses, &Clause.get_trace_cmd(&1))
-        ++ Enum.map(probe.process_list, fn p ->
-          [
-            fun: &:erlang.trace/3,
-            pid_port_spec: p,
-            how: true,
-            flag_list: flags ++ flags(probe)
-          ]
-        end)
+        Enum.map(probe.clauses, &Clause.get_trace_cmd(&1)) ++
+          Enum.map(probe.process_list, fn p ->
+            [
+              fun: &:erlang.trace/3,
+              pid_port_spec: p,
+              how: true,
+              flag_list: flags ++ flags(probe)
+            ]
+          end)
       else
-        error -> raise RuntimeError, message: "invalid probe #{inspect error}"
+        error -> raise RuntimeError, message: "invalid probe #{inspect(error)}"
       end
     else
       []
     end
   end
 
-  [:arity, :timestamp, :return_to] |> Enum.each(fn flag ->
+  [:arity, :timestamp, :return_to]
+  |> Enum.each(fn flag ->
     def unquote(flag)(probe, enable) when is_boolean(enable) do
       if probe.type == :call do
         flag(probe, unquote(flag), enable)
@@ -196,6 +219,7 @@ defmodule Tracer.Probe do
   defp flag(probe, flag, true) do
     put_in(probe.flags, Enum.uniq([flag | probe.flags]))
   end
+
   defp flag(probe, flag, false) do
     put_in(probe.flags, probe.flags -- [flag])
   end
@@ -235,6 +259,7 @@ defmodule Tracer.Probe do
     case probe.clauses do
       [] ->
         put_in(probe.clauses, [Clause.new() |> Clause.put_fun(fun)])
+
       [clause | rest] ->
         put_in(probe.clauses, [Clause.put_fun(clause, fun) | rest])
     end
@@ -242,10 +267,12 @@ defmodule Tracer.Probe do
 
   def match(probe, {m}), do: match(probe, {m, :_, :_})
   def match(probe, {m, f}), do: match(probe, {m, f, :_})
+
   def match(probe, {m, f, a}) do
     case probe.clauses do
       [] ->
         put_in(probe.clauses, [Clause.new() |> Clause.put_mfa(m, f, a)])
+
       [clause | rest] ->
         put_in(probe.clauses, [Clause.put_mfa(clause, m, f, a) | rest])
     end
@@ -253,17 +280,19 @@ defmodule Tracer.Probe do
 
   def match(probe, %Matcher{} = matcher) do
     {m, f, a} = Map.get(matcher, :mfa)
-    clause = Clause.new()
+
+    clause =
+      Clause.new()
       |> Clause.add_matcher(Map.get(matcher, :ms))
       |> Clause.put_mfa(m, f, a)
       |> Clause.set_flags(Map.get(matcher, :flags, []))
       |> Clause.set_desc(Map.get(matcher, :desc, "unavailable"))
+
     put_in(probe.clauses, [clause | probe.clauses])
   end
 
   def match(_, _) do
     raise ArgumentError,
-        message: "Not a valid matcher, check your syntax. Forgot local/global?"
+      message: "Not a valid matcher, check your syntax. Forgot local/global?"
   end
-
 end

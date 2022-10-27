@@ -41,12 +41,14 @@ defmodule Tracer.Clause do
   end
 
   def put_mfa(clause, m \\ :_, f \\ :_, a \\ :_)
+
   def put_mfa(clause, m, f, a)
       when is_atom(m) and is_atom(f) and (is_atom(a) or is_integer(a)) do
     clause
     |> Map.put(:mfa, {m, f, a})
     |> Map.put(:type, :call)
   end
+
   def put_mfa(_clause, _, _, _) do
     {:error, :invalid_mfa}
   end
@@ -57,6 +59,7 @@ defmodule Tracer.Clause do
         with {m, f, a} <- to_mfa(fun) do
           put_mfa(clause, m, f, a)
         end
+
       _ ->
         {:error, "#{inspect(fun)} is not an external fun"}
     end
@@ -70,7 +73,7 @@ defmodule Tracer.Clause do
     put_in(clause.match_specs, matcher ++ clause.match_specs)
   end
 
-  def filter(clause, [by: matcher]) do
+  def filter(clause, by: matcher) do
     put_in(clause.match_specs, matcher ++ clause.match_specs)
   end
 
@@ -86,9 +89,13 @@ defmodule Tracer.Clause do
 
   def apply(clause, not_remove \\ true) do
     with :ok <- valid?(clause) do
-      res = :erlang.trace_pattern(clause.mfa,
-                                  not_remove && clause.match_specs,
-                                  clause.flags)
+      res =
+        :erlang.trace_pattern(
+          clause.mfa,
+          not_remove && clause.match_specs,
+          clause.flags
+        )
+
       if not_remove == false do
         put_in(clause.matches, 0)
       else
@@ -106,28 +113,35 @@ defmodule Tracer.Clause do
         flag_list: clause.flags
       ]
     else
-      error -> raise RuntimeError, message: "invalid clause #{inspect error}"
+      error -> raise RuntimeError, message: "invalid clause #{inspect(error)}"
     end
   end
 
   defp validate_mfa(clause) do
     case clause.mfa do
-      nil -> {:error, :missing_mfa}
+      nil ->
+        {:error, :missing_mfa}
+
       {m, f, a}
-        when is_atom(m) and is_atom(f) and (is_atom(a) or is_integer(a)) -> :ok
-      _ -> {:error, :invalid_mfa}
+      when is_atom(m) and is_atom(f) and (is_atom(a) or is_integer(a)) ->
+        :ok
+
+      _ ->
+        {:error, :invalid_mfa}
     end
   end
 
   def valid_flags?(flags) when is_list(flags) do
-    with [] <- Enum.reduce(flags, [], fn f, acc ->
-      if valid_flag?(f), do: acc, else: [{:invalid_clause_flag, f} | acc]
-    end) do
+    with [] <-
+           Enum.reduce(flags, [], fn f, acc ->
+             if valid_flag?(f), do: acc, else: [{:invalid_clause_flag, f} | acc]
+           end) do
       :ok
     else
       error_list -> {:error, error_list}
     end
   end
+
   def valid_flags?(flag) do
     if valid_flag?(flag), do: :ok, else: {:error, :invalid_clause_flag}
   end
@@ -145,5 +159,4 @@ defmodule Tracer.Clause do
       _ -> {:error, :invalid_mfa}
     end
   end
-
 end

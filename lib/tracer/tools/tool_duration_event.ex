@@ -13,24 +13,37 @@ defmodule Tracer.Tool.Duration.Event do
 
   defimpl String.Chars, for: Event do
     def to_string(%Event{duration: d} = event) when is_integer(d) do
-      duration_str = String.pad_trailing(Integer.to_string(event.duration),
-                                         20)
+      duration_str =
+        String.pad_trailing(
+          Integer.to_string(event.duration),
+          20
+        )
+
       "\t#{duration_str} " <>
-        (if event.pid == nil, do: "", else: inspect(event.pid)) <>
-        " #{inspect event.mod}.#{event.fun}/#{event.arity}" <>
-        " #{message_to_string event.message}"
+        if(event.pid == nil, do: "", else: inspect(event.pid)) <>
+        " #{inspect(event.mod)}.#{event.fun}/#{event.arity}" <>
+        " #{message_to_string(event.message)}"
     end
+
     def to_string(event) do
-      header = "#{inspect event.mod}.#{event.fun}/#{event.arity}" <>
-        " #{message_to_string event.message}\n"
-        step = (event.duration |> Map.values |> Enum.max) / 41
-      title = String.pad_leading("value", 15) <>
-                "  ------------- Distribution ------------- count\n"
-      body = event.duration
-      |> Enum.map(fn {key, value} ->
-        String.pad_leading(Integer.to_string(key), 15) <>
-        " |" <> to_bar(value, step) <> " #{value}\n"
-      end) |> Enum.join("")
+      header =
+        "#{inspect(event.mod)}.#{event.fun}/#{event.arity}" <>
+          " #{message_to_string(event.message)}\n"
+
+      step = (event.duration |> Map.values() |> Enum.max()) / 41
+
+      title =
+        String.pad_leading("value", 15) <>
+          "  ------------- Distribution ------------- count\n"
+
+      body =
+        event.duration
+        |> Enum.map(fn {key, value} ->
+          String.pad_leading(Integer.to_string(key), 15) <>
+            " |" <> to_bar(value, step) <> " #{value}\n"
+        end)
+        |> Enum.join("")
+
       header <> title <> body
     end
 
@@ -40,14 +53,14 @@ defmodule Tracer.Tool.Duration.Event do
     end
 
     defp message_to_string(nil), do: ""
+
     defp message_to_string(term) when is_list(term) do
       term
       |> Enum.map(fn
         [key, val] -> {key, val}
-        other -> "#{inspect other}"
+        other -> "#{inspect(other)}"
       end)
       |> inspect()
     end
   end
-
 end

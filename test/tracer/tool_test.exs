@@ -49,7 +49,7 @@ defmodule Tracer.Tool.Test do
   test "init() initializes tool" do
     tool = TestTool.init([])
 
-    assert Map.get(tool, :"__tool__") == %Tool{process: self()}
+    assert Map.get(tool, :__tool__) == %Tool{process: self()}
   end
 
   test "init() raises error if opts is not a list" do
@@ -72,7 +72,7 @@ defmodule Tracer.Tool.Test do
                           other_keys: "foo"
                           )
 
-    assert Map.get(tool, :"__tool__") == %Tool{
+    assert Map.get(tool, :__tool__) == %Tool{
       process: :c.pid(0, 42, 0),
       forward_to: :c.pid(0, 43, 0),
       agent_opts: [
@@ -90,7 +90,7 @@ defmodule Tracer.Tool.Test do
     tool = TestTool.init([])
     |> Tool.add_probe(Probe.new(type: :call, process: self()))
 
-    assert Map.get(tool, :"__tool__") == %Tool{
+    assert Map.get(tool, :__tool__) == %Tool{
       process: self(),
       probes: [Probe.new(type: :call, process: self())]
     }
@@ -101,7 +101,7 @@ defmodule Tracer.Tool.Test do
     |> Tool.add_probe(Probe.new(type: :call, process: self()))
     |> Tool.remove_probe(Probe.new(type: :call, process: self()))
 
-    assert Map.get(tool, :"__tool__") == %Tool{
+    assert Map.get(tool, :__tool__) == %Tool{
       process: self(),
       probes: []
     }

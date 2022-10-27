@@ -1,9 +1,9 @@
 defmodule Tracer.HandlerAgent do
-@moduledoc """
-HandlerAgent takes care of starting and stopping traces in the
-NUT (node under test), as well as watching over the event handler
-as it processes events.
-"""
+  @moduledoc """
+  HandlerAgent takes care of starting and stopping traces in the
+  NUT (node under test), as well as watching over the event handler
+  as it processes events.
+  """
   alias __MODULE__
   alias Tracer.PidHandler
   import Tracer.Macros
@@ -21,12 +21,12 @@ as it processes events.
   def start(opts \\ []) do
     initial_state = process_opts(%HandlerAgent{}, opts)
     pid = spawn_in_target(initial_state)
-    send pid, :start
+    send(pid, :start)
     pid
   end
 
   def stop(pid) do
-    send pid, :stop
+    send(pid, :stop)
   end
 
   defp process_opts(state, opts) do
@@ -36,51 +36,70 @@ as it processes events.
     |> Map.put(:stop_trace_cmds, Keyword.get(opts, :stop_trace_cmds, []))
     |> assign_to(state)
 
-    state = if Keyword.get(opts, :max_tracing_time) != nil do
-      put_in(state.max_tracing_time, Keyword.get(opts, :max_tracing_time))
-    else
-      state
-    end
+    state =
+      if Keyword.get(opts, :max_tracing_time) != nil do
+        put_in(state.max_tracing_time, Keyword.get(opts, :max_tracing_time))
+      else
+        state
+      end
 
-    state = if Keyword.get(opts, :max_message_count) != nil do
-      put_in(state.pid_handler_opts,
-          [{:max_message_count, Keyword.get(opts, :max_message_count)}
-           | state.pid_handler_opts])
-    else
-      state
-    end
+    state =
+      if Keyword.get(opts, :max_message_count) != nil do
+        put_in(
+          state.pid_handler_opts,
+          [
+            {:max_message_count, Keyword.get(opts, :max_message_count)}
+            | state.pid_handler_opts
+          ]
+        )
+      else
+        state
+      end
 
-    state = if Keyword.get(opts, :max_queue_size) != nil do
-      put_in(state.pid_handler_opts,
-          [{:max_queue_size, Keyword.get(opts, :max_queue_size)}
-           | state.pid_handler_opts])
-    else
-      state
-    end
+    state =
+      if Keyword.get(opts, :max_queue_size) != nil do
+        put_in(
+          state.pid_handler_opts,
+          [
+            {:max_queue_size, Keyword.get(opts, :max_queue_size)}
+            | state.pid_handler_opts
+          ]
+        )
+      else
+        state
+      end
 
     event_callback =
-    if Keyword.get(opts, :forward_pid) != nil do
-      {:event_callback, {&__MODULE__.forwarding_handler_callback/2,
-                          Keyword.get(opts, :forward_pid)}}
-    else
-      {:event_callback, &__MODULE__.discard_handler_callback/1}
-    end
+      if Keyword.get(opts, :forward_pid) != nil do
+        {:event_callback,
+         {&__MODULE__.forwarding_handler_callback/2, Keyword.get(opts, :forward_pid)}}
+      else
+        {:event_callback, &__MODULE__.discard_handler_callback/1}
+      end
 
     if Keyword.get(opts, :event_callback) != nil do
-      put_in(state.pid_handler_opts,
-          [{:event_callback, Keyword.get(opts, :event_callback)}
-           | state.pid_handler_opts])
+      put_in(
+        state.pid_handler_opts,
+        [
+          {:event_callback, Keyword.get(opts, :event_callback)}
+          | state.pid_handler_opts
+        ]
+      )
     else
-      put_in(state.pid_handler_opts,
-          [event_callback | state.pid_handler_opts])
+      put_in(
+        state.pid_handler_opts,
+        [event_callback | state.pid_handler_opts]
+      )
     end
   end
 
   defp spawn_in_target(state) do
     if state.node != nil do
-      [__MODULE__, Tracer.PidHandler] |> Enum.each(fn mod ->
+      [__MODULE__, Tracer.PidHandler]
+      |> Enum.each(fn mod ->
         ensure_loaded_remote(state.node, mod)
       end)
+
       Node.spawn_link(state.node, fn -> process_loop(state) end)
     else
       spawn_link(fn -> process_loop(state) end)
@@ -91,40 +110,51 @@ as it processes events.
     receive do
       :start ->
         Process.flag(:trap_exit, true)
+
         state
         |> start_handler()
         |> stop_tracing()
         |> start_tracing()
         |> start_timer()
         |> process_loop()
+
       {:timeout, _timeref, _} ->
         stop_tracing_and_handler(state)
         exit({:done_tracing, :tracing_timeout, state.max_tracing_time})
+
       :stop ->
         stop_tracing_and_handler(state)
         exit({:done_tracing, :stop_command})
-      {:EXIT, _, :normal} -> # we should be dead by the time this is sent
+
+      # we should be dead by the time this is sent
+      {:EXIT, _, :normal} ->
         exit(:normal)
+
       {:EXIT, _, {:message_queue_size, len}} ->
         stop_tracing(state)
         exit({:done_tracing, :message_queue_size, len})
+
       {:EXIT, _, {:max_message_count, count}} ->
         stop_tracing(state)
         exit({:done_tracing, :max_message_count, count})
+
       :restart_timer ->
         state
         |> cancel_timer()
         |> start_timer()
         |> process_loop()
+
       # testing helpers
       {:get_handler_pid, sender_pid} ->
-        send sender_pid, {:handler_pid, state.handler_pid}
-        process_loop(state)
-      {:get_pid_handler_opts, sender_pid} ->
-        send sender_pid, {:pid_handler_opts, state.pid_handler_opts}
+        send(sender_pid, {:handler_pid, state.handler_pid})
         process_loop(state)
 
-      _ignore -> process_loop(state)
+      {:get_pid_handler_opts, sender_pid} ->
+        send(sender_pid, {:pid_handler_opts, state.pid_handler_opts})
+        process_loop(state)
+
+      _ignore ->
+        process_loop(state)
     end
   end
 
@@ -153,6 +183,7 @@ as it processes events.
     state
     |> Map.get(:handler_pid)
     |> PidHandler.stop()
+
     put_in(state.handler_pid, nil)
   end
 
@@ -160,33 +191,39 @@ as it processes events.
     # TODO store the number of matches, so that it can be send back to admin
     # process
     trace_fun = &:erlang.trace/3
+
     state.start_trace_cmds
     |> Enum.each(fn
       [{:fun, ^trace_fun} | args] ->
-        bare_args = Enum.map(args, fn
-          # inject tracer option
-          {:flag_list, flags} -> [{:tracer, state.handler_pid} | flags]
-          {_other, arg} -> arg
-        end)
+        bare_args =
+          Enum.map(args, fn
+            # inject tracer option
+            {:flag_list, flags} -> [{:tracer, state.handler_pid} | flags]
+            {_other, arg} -> arg
+          end)
+
         # IO.puts("#{inspect trace_fun} args: #{inspect bare_args}")
         _res = apply(trace_fun, bare_args)
-        # IO.puts("#{inspect trace_fun} args: #{inspect bare_args}" <>
-        # " = #{inspect res}")
+
+      # IO.puts("#{inspect trace_fun} args: #{inspect bare_args}" <>
+      # " = #{inspect res}")
 
       [{:fun, fun} | args] ->
-        bare_args = Enum.map(args, &(elem(&1, 1)))
+        bare_args = Enum.map(args, &elem(&1, 1))
         _res = apply(fun, bare_args)
         # IO.puts("#{inspect fun} args: #{inspect bare_args} = #{inspect res}")
     end)
+
     state
   end
 
   def stop_tracing(state) do
     state.stop_trace_cmds
     |> Enum.each(fn [{:fun, fun} | args] ->
-      bare_args = Enum.map(args, &(elem(&1, 1)))
+      bare_args = Enum.map(args, &elem(&1, 1))
       apply(fun, bare_args)
     end)
+
     state
   end
 
@@ -196,7 +233,7 @@ as it processes events.
   end
 
   def forwarding_handler_callback(event, pid) do
-    send pid, event
+    send(pid, event)
     {:ok, pid}
   end
 
@@ -209,14 +246,22 @@ as it processes events.
         load_remote(node, mod)
         ensure_loaded_remote(node, mod)
         :ok
-      {:badrpc , _} -> :ok
+
+      {:badrpc, _} ->
+        :ok
+
       info when is_list(info) ->
         case {get_ts(info), get_ts(mod.module_info(:compile))} do
-          {:interpreted, _} -> :ok
-          {target, host} when target < host -> # old code on target
+          {:interpreted, _} ->
+            :ok
+
+          # old code on target
+          {target, host} when target < host ->
             load_remote(node, mod)
             ensure_loaded_remote(node, mod)
-          _ -> :ok
+
+          _ ->
+            :ok
         end
     end
   end
@@ -229,5 +274,4 @@ as it processes events.
   defp get_ts([]), do: :interpreted
   defp get_ts([{:time, time} | _]), do: time
   defp get_ts([_ | rest]), do: get_ts(rest)
-
 end

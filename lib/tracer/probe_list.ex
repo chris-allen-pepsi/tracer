@@ -13,6 +13,7 @@ defmodule Tracer.ProbeList do
       _ -> {:error, :duplicate_probe_type}
     end
   end
+
   def add_probe(_probes, _) do
     {:error, :not_a_probe}
   end
@@ -20,6 +21,7 @@ defmodule Tracer.ProbeList do
   def remove_probe(probes, %Probe{} = probe) do
     Enum.filter(probes, fn p -> p != probe end)
   end
+
   def remove_probe(_probes, _) do
     {:error, :not_a_probe}
   end
@@ -47,5 +49,4 @@ defmodule Tracer.ProbeList do
       end
     end
   end
-
 end

@@ -23,5 +23,4 @@ defmodule Tracer.Supervisor do
   def stop_server(pid) do
     Supervisor.terminate_child(__MODULE__, pid)
   end
-
 end

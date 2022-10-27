@@ -39,6 +39,7 @@ defmodule Tracer do
   """
   alias Tracer.{Server, Probe, Tool}
   import Tracer.Macros
+
   defmacro __using__(_opts) do
     quote do
       import Tracer
@@ -49,10 +50,10 @@ defmodule Tracer do
     end
   end
 
-  delegate :start_server, to: Server, as: :start
-  delegate :stop_server, to: Server, as: :stop
-  delegate :stop, to: Server, as: :stop_tool
-  delegate_1 :set_tool, to: Server, as: :set_tool
+  delegate(:start_server, to: Server, as: :start)
+  delegate(:stop_server, to: Server, as: :stop)
+  delegate(:stop, to: Server, as: :stop_tool)
+  delegate_1(:set_tool, to: Server, as: :set_tool)
 
   def probe(params) do
     Probe.new(params)
@@ -102,11 +103,11 @@ defmodule Tracer do
             2              [string:"Hello World", pattern:" "]
     ```
   """
-  def run(%{"__tool__": _} = tool) do
+  def run(%{__tool__: _} = tool) do
     Server.start_tool(tool)
   end
+
   def run(tool_name, params) do
     Server.start_tool(tool(tool_name, params))
   end
-
 end

@@ -18,35 +18,40 @@ defmodule Tracer.Tool.Count.Event do
     end
 
     defp find_max_lengths(list) do
-      Enum.reduce(list, {nil, []},
-          fn {e, c}, {max, acc} ->
+      Enum.reduce(list, {nil, []}, fn {e, c}, {max, acc} ->
         max = max || Enum.map(e, fn _ -> 0 end)
-        max = e
-        |> Enum.zip(max)
-        |> Enum.map(fn
-          {{:_unknown, other}, m} ->
-            max(m, String.length(other))
-          {{key, val}, m} ->
-            max(m, String.length("#{Atom.to_string(key)}:#{inspect val}"))
-       end)
+
+        max =
+          e
+          |> Enum.zip(max)
+          |> Enum.map(fn
+            {{:_unknown, other}, m} ->
+              max(m, String.length(other))
+
+            {{key, val}, m} ->
+              max(m, String.length("#{Atom.to_string(key)}:#{inspect(val)}"))
+          end)
+
         {max, acc ++ [{e, c}]}
       end)
     end
 
     defp format_count_entries({max, list}) do
-      Enum.map(list, fn({e, c}) ->
-        e_as_string = max
-        |> Enum.zip(e)
-        |> Enum.map(fn
-          {m, {:_unknown, other}} ->
-            String.pad_trailing(other, m)
-          {m, {key, val}} ->
-            String.pad_trailing("#{Atom.to_string(key)}:#{inspect val}", m)
-        end)
-        |> Enum.join(", ")
+      Enum.map(list, fn {e, c} ->
+        e_as_string =
+          max
+          |> Enum.zip(e)
+          |> Enum.map(fn
+            {m, {:_unknown, other}} ->
+              String.pad_trailing(other, m)
+
+            {m, {key, val}} ->
+              String.pad_trailing("#{Atom.to_string(key)}:#{inspect(val)}", m)
+          end)
+          |> Enum.join(", ")
+
         {e_as_string, c}
       end)
     end
   end
-
 end

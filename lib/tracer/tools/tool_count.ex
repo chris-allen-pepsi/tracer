@@ -12,19 +12,31 @@ defmodule Tracer.Tool.Count do
     init_state = init_tool(%Count{}, opts, [:match])
 
     case Keyword.get(opts, :match) do
-      nil -> init_state
+      nil ->
+        init_state
+
       matcher ->
         node = Keyword.get(opts, :node)
-        process = init_state
-        |> get_process()
-        |> ProcessHelper.ensure_pid(node)
+
+        process =
+          init_state
+          |> get_process()
+          |> ProcessHelper.ensure_pid(node)
 
         all_child = ProcessHelper.find_all_children(process, node)
-        probe_call = Probe.new(type: :call,
-                               process: [process | all_child],
-                               match: matcher)
-        probe_spawn = Probe.new(type: :set_on_spawn,
-                                process: [process | all_child])
+
+        probe_call =
+          Probe.new(
+            type: :call,
+            process: [process | all_child],
+            match: matcher
+          )
+
+        probe_spawn =
+          Probe.new(
+            type: :set_on_spawn,
+            process: [process | all_child]
+          )
 
         set_probes(init_state, [probe_call, probe_spawn])
     end
@@ -36,17 +48,20 @@ defmodule Tracer.Tool.Count do
         key = message_to_tuple_list(message)
         new_count = Map.get(state.counts, key, 0) + 1
         put_in(state.counts, Map.put(state.counts, key, new_count))
-      _ -> state
+
+      _ ->
+        state
     end
   end
 
   def handle_stop(state) do
-    counts = state.counts
-    |> Map.to_list()
-    |> Enum.sort(&(elem(&1, 1) < elem(&2, 1)))
+    counts =
+      state.counts
+      |> Map.to_list()
+      |> Enum.sort(&(elem(&1, 1) < elem(&2, 1)))
 
     report_event(state, %Event{
-        counts: counts
+      counts: counts
     })
 
     state
@@ -58,7 +73,6 @@ defmodule Tracer.Tool.Count do
       [key, val] -> {key, val}
       # [key, val] -> {key, inspect(val)}
       other -> {:_unknown, inspect(other)}
-     end)
+    end)
   end
-
 end
